@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quiz App Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+    <div id="app-container">
+        
+        <section id="view-db-select" class="view">
+            <h1>Importa Dati</h1>
+            <p style="text-align: center; margin-bottom: 20px;">Seleziona il tuo file .json e tutte le immagini associate direttamente dal telefono.</p>
+            <div style="background: var(--bg-card); padding: 20px; border-radius: 8px; text-align: center;">
+                <input type="file" id="file-input" multiple accept=".json, image/*" style="display: block; width: 100%; margin-bottom: 20px; color: var(--text-main);">
+                <button class="mode-btn" onclick="processFiles()">Carica in Memoria</button>
+            </div>
+        </section>
+        
+        <section id="view-mode-select" class="view hidden">
+            <h1 id="mode-db-title"></h1>
+            <button class="mode-btn" onclick="startMode('normal')">Ordered mode</button>
+            <button class="mode-btn" onclick="startMode('shuffle')">Shuffle mode</button>
+            <button class="mode-btn" onclick="startMode('crocette', false)">Multiple choice (ordered)</button>
+            <button class="mode-btn" onclick="startMode('crocette', true)">Multiple choice (shuffle)</button>
+            <button class="mode-btn" onclick="startMode('dariempire', false)">Fill in the blank (ordered)</button>
+            <button class="mode-btn" onclick="startMode('dariempire', true)">Fill in the blank (shuffle)</button>
+            <button class="menu-btn" onclick="switchView('view-db-select')">Indietro</button>
+        </section>
+
+        <section id="view-quiz" class="view hidden">
+            <header>
+                <div id="progress-bar"><div id="progress-fill"></div></div>
+                <p id="stats">Q: <span id="current-q">0</span>/<span id="total-q">0</span> | Punteggio: <span id="score">0</span> | <span id="timer">0m 0s</span></p>
+            </header>
+            <main>
+                <div id="image-container"></div>
+                <h2 id="question-text"></h2>
+                
+                <div id="options-container" class="hidden"></div>
+                <div id="input-container" class="hidden">
+                    <input type="text" id="text-answer" placeholder="Scrivi la risposta...">
+                </div>
+                
+                <div id="feedback" class="hidden"></div>
+                
+                <div class="button-row">
+                    <button id="submit-btn" class="action-btn">Submit</button>
+                    <button id="next-btn" class="action-btn hidden">Next</button>
+                </div>
+                <button class="menu-btn" onclick="quitQuiz()">Back to menu</button>
+            </main>
+        </section>
+
+        <section id="view-results" class="view hidden">
+            <h1>Quiz Terminato</h1>
+            <div id="results-stats"></div>
+            <button id="retry-errors-btn" class="mode-btn hidden" onclick="retryErrors()">Riprova solo errori</button>
+            <button class="mode-btn" onclick="retryShuffle()">Riprova tutti (Shuffle)</button>
+            <button class="menu-btn" onclick="switchView('view-db-select')">Menu Principale</button>
+        </section>
+
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

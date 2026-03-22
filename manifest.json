@@ -1,0 +1,15 @@
+{
+  "name": "Quiz Pro",
+  "short_name": "QuizPro",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#222831",
+  "theme_color": "#00ADB5",
+  "icons": [
+    {
+      "src": "https://www.iconpacks.net/icons/2/free-settings-icon-3110-thumb.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
