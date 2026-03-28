@@ -10,6 +10,7 @@ let state = {
 };
 
 let imageMap = {};
+let currentSelectedMatchItem = null;
 
 window.onload = () => {
     switchView('view-db-select');
@@ -171,6 +172,59 @@ function renderQuestion() {
             row.appendChild(document.createTextNode(`${newLetter}: ${text}`));
             ui.opts.appendChild(row);
         });
+    
+
+    } else if (qType === 'tap_match') {
+        ui.opts.classList.remove('hidden');
+        ui.opts.innerHTML = '<div id="match-area"></div>';
+        const matchArea = document.getElementById('match-area');
+        
+        // Crea area sorgente
+        const sourceDiv = document.createElement('div');
+        sourceDiv.className = 'match-source';
+        sourceDiv.id = 'match-source';
+        
+        // Mischia e crea gli item
+        let shuffledItems = [...q.items].sort(() => Math.random() - 0.5);
+        shuffledItems.forEach(itemText => {
+            let el = document.createElement('div');
+            el.className = 'match-item';
+            el.innerText = itemText;
+            el.onclick = function() {
+                document.querySelectorAll('.match-item').forEach(i => i.classList.remove('selected'));
+                this.classList.add('selected');
+                currentSelectedMatchItem = this;
+            };
+            sourceDiv.appendChild(el);
+        });
+        
+        matchArea.appendChild(sourceDiv);
+        
+        // Crea le categorie (i secchi)
+        q.categories.forEach(catName => {
+            let catDiv = document.createElement('div');
+            catDiv.className = 'match-category';
+            catDiv.innerHTML = `<h3>${catName}</h3>`;
+            
+            let bucket = document.createElement('div');
+            bucket.className = 'match-bucket';
+            bucket.dataset.category = catName;
+            
+            // Logica di assegnazione al tocco sulla categoria
+            catDiv.onclick = function() {
+                if (currentSelectedMatchItem) {
+                    currentSelectedMatchItem.classList.remove('selected');
+                    bucket.appendChild(currentSelectedMatchItem);
+                    currentSelectedMatchItem = null;
+                } else if (event.target.classList.contains('match-item')) {
+                    // Se tocchi un item già assegnato, lo rimette nella sorgente
+                    document.getElementById('match-source').appendChild(event.target);
+                }
+            };
+            
+            catDiv.appendChild(bucket);
+            matchArea.appendChild(catDiv);
+        });
     } else {
         ui.inputBox.classList.remove('hidden');
     }
@@ -187,6 +241,32 @@ function checkAnswer() {
     if (qType === 'drag_drop') {
         isCorrect = true;
         feedbackText = "Self-Check mode.";
+        
+    } else if (qType === 'tap_match') {
+        let allCorrect = true;
+        let buckets = document.querySelectorAll('.match-bucket');
+        
+        // Se ci sono ancora elementi non assegnati
+        if (document.getElementById('match-source').children.length > 0) {
+            allCorrect = false;
+        }
+
+        buckets.forEach(bucket => {
+            let catName = bucket.dataset.category;
+            Array.from(bucket.children).forEach(itemNode => {
+                let itemText = itemNode.innerText;
+                if (q.answer[itemText] === catName) {
+                    itemNode.style.border = "2px solid var(--success)";
+                } else {
+                    itemNode.style.border = "2px solid var(--error)";
+                    allCorrect = false;
+                }
+            });
+        });
+
+        isCorrect = allCorrect;
+        feedbackText = isCorrect ? "Associazioni perfette!" : "Ci sono errori nelle associazioni. Controlla gli elementi rossi.";
+
     } else if (qType === 'crocette') {
         let selectedOldKeys = [];
         let checkboxes = document.querySelectorAll('.option-row input[type="checkbox"]');
@@ -209,7 +289,7 @@ function checkAnswer() {
             }
         });
 
-        feedbackText = isCorrect ? "Corretto!" : `Sbagliato. Risposte corrette: ${correctKeys.join(', ')}`;
+        feedbackText = isCorrect ? "Corretto!" : `Sbagliato.`;
 
     } else {
         let inputVal = document.getElementById('text-answer').value.trim().toLowerCase();
@@ -217,7 +297,7 @@ function checkAnswer() {
         document.getElementById('text-answer').disabled = true;
 
         isCorrect = (inputVal === correctVal);
-        feedbackText = isCorrect ? "Corretto!" : `Sbagliato. Risposta corretta: ${q.answer}`;
+        feedbackText = isCorrect ? "Corretto!" : `Sbagliato.`;
     }
 
     let fbDiv = document.getElementById('feedback');
