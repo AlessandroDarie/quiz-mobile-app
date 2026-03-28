@@ -179,18 +179,36 @@ function renderQuestion() {
         ui.opts.innerHTML = '<div id="match-area"></div>';
         const matchArea = document.getElementById('match-area');
         
-        // Crea area sorgente
         const sourceDiv = document.createElement('div');
         sourceDiv.className = 'match-source';
         sourceDiv.id = 'match-source';
         
-        // Mischia e crea gli item
+        // Bersaglio 1: Rimettere l'elemento nell'area sorgente
+        sourceDiv.onclick = function() {
+            if (currentSelectedMatchItem) {
+                currentSelectedMatchItem.classList.remove('selected');
+                sourceDiv.appendChild(currentSelectedMatchItem);
+                currentSelectedMatchItem = null;
+            }
+        };
+
         let shuffledItems = [...q.items].sort(() => Math.random() - 0.5);
         shuffledItems.forEach(itemText => {
             let el = document.createElement('div');
             el.className = 'match-item';
             el.innerText = itemText;
-            el.onclick = function() {
+            
+            // Logica di selezione isolata per l'elemento stesso
+            el.onclick = function(e) {
+                e.stopPropagation(); // Evita che il click si propaghi al contenitore sottostante
+                
+                // Deseleziona se tocchi l'elemento già attivo
+                if (currentSelectedMatchItem === this) {
+                    this.classList.remove('selected');
+                    currentSelectedMatchItem = null;
+                    return;
+                }
+                
                 document.querySelectorAll('.match-item').forEach(i => i.classList.remove('selected'));
                 this.classList.add('selected');
                 currentSelectedMatchItem = this;
@@ -200,25 +218,22 @@ function renderQuestion() {
         
         matchArea.appendChild(sourceDiv);
         
-        // Crea le categorie (i secchi)
         q.categories.forEach(catName => {
             let catDiv = document.createElement('div');
             catDiv.className = 'match-category';
-            catDiv.innerHTML = `<h3>${catName}</h3>`;
+            // pointer-events: none sul titolo evita conflitti di click
+            catDiv.innerHTML = `<h3 style="pointer-events: none; margin: 0 0 10px 0; border-bottom: 1px solid rgba(0,0,0,0.2); padding-bottom: 5px;">${catName}</h3>`;
             
             let bucket = document.createElement('div');
             bucket.className = 'match-bucket';
             bucket.dataset.category = catName;
             
-            // Logica di assegnazione al tocco sulla categoria
+            // Bersaglio 2: Spostare l'elemento in una categoria
             catDiv.onclick = function() {
                 if (currentSelectedMatchItem) {
                     currentSelectedMatchItem.classList.remove('selected');
                     bucket.appendChild(currentSelectedMatchItem);
                     currentSelectedMatchItem = null;
-                } else if (event.target.classList.contains('match-item')) {
-                    // Se tocchi un item già assegnato, lo rimette nella sorgente
-                    document.getElementById('match-source').appendChild(event.target);
                 }
             };
             
