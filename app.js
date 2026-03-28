@@ -6,7 +6,8 @@ let state = {
     score: 0,
     startTime: null,
     timerInterval: null,
-    currentDb: null
+    currentDb: null,
+    selectedCategory: null
 };
 
 let imageMap = {};
@@ -53,18 +54,37 @@ function processFiles() {
     reader.readAsText(jsonFile);
 }
 
-function startMode(mode, isShuffle = false) {
+function selectCategory(cat) {
+    state.selectedCategory = cat;
+    switchView('view-order-select');
+}
+
+function confirmMode(isShuffle) {
+    let mode = state.selectedCategory;
     let qList = [...state.allQuestions];
 
-    if (mode === 'crocette' || mode === 'dariempire') {
+    // Applica il filtro della categoria se non è "all"
+    if (mode !== 'all') {
         qList = qList.filter(q => (q.type || 'crocette') === mode);
     }
 
-    if (isShuffle || mode === 'shuffle') {
+    if (qList.length === 0) { 
+        alert("Nessuna domanda presente in questa categoria."); 
+        switchView('view-mode-select');
+        return; 
+    }
+
+    // Applica l'ordinamento
+    if (isShuffle) {
         qList.sort(() => Math.random() - 0.5);
     }
 
-    let limit = prompt(`Totale domande: ${qList.length}. Quante ne vuoi fare? (Lascia vuoto per tutte, o usa formato '1-30')`);
+    // Selezione del range
+    let limit = prompt(`Trovate ${qList.length} domande. Quante ne vuoi fare? (Lascia vuoto per tutte, o usa formato '1-30')`);
+    
+    // Se l'utente preme "Annulla" sul prompt, interrompi
+    if (limit === null) return; 
+
     if (limit) {
         if (limit.includes('-')) {
             let parts = limit.split('-');
@@ -77,10 +97,11 @@ function startMode(mode, isShuffle = false) {
         }
     }
 
-    if(qList.length === 0) { 
-        alert("Nessuna domanda selezionata"); 
+    if (qList.length === 0) { 
+        alert("Range non valido o nessuna domanda selezionata."); 
         return; 
     }
+    
     startQuizCore(qList);
 }
 
