@@ -42,3 +42,16 @@ h1, h2 { text-align: center; color: var(--accent); }
 #feedback { padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 15px; }
 #feedback.success { background: rgba(22, 193, 114, 0.2); color: var(--success); }
 #feedback.error { background: rgba(240, 84, 84, 0.2); color: var(--error); }
+
+/* Tap-to-Match UI */
+#match-area { display: flex; flex-direction: column; gap: 20px; }
+.match-source { display: flex; flex-wrap: wrap; gap: 10px; background: var(--bg-card); padding: 15px; border-radius: 8px; min-height: 80px; }
+.match-item { 
+    background: #89CFF0; color: #000; padding: 10px; border-radius: 4px; font-size: 0.9rem; 
+    cursor: pointer; border: 2px solid transparent; user-select: none; transition: 0.2s;
+}
+.match-item.selected { border-color: var(--error); transform: scale(1.05); font-weight: bold; }
+.match-category { background: #FFDAB9; border-radius: 8px; padding: 10px; min-height: 120px; color: #000; }
+.match-category h3 { margin: 0 0 10px 0; font-size: 1rem; border-bottom: 1px solid rgba(0,0,0,0.2); padding-bottom: 5px; color: #000; }
+.match-bucket { display: flex; flex-direction: column; gap: 5px; min-height: 80px; }
+.match-bucket .match-item { background: #F5F5DC; width: 100%; border: 1px solid #ccc; }
