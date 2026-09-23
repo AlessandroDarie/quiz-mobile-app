@@ -1,73 +1,140 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" id="theme-color-meta" content="#ffffff">
     <title>Quiz App Pro</title>
+    <script>
+        // Applicato prima del CSS per evitare il lampo del tema sbagliato al caricamento.
+        (function () {
+            var t = 'light';
+            try { t = localStorage.getItem('quizTheme') || 'light'; } catch (e) {}
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
 </head>
 <body>
+    <nav class="top-nav">
+        <div class="nav-container">
+            <div class="brand">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                <span>Quiz</span>
+            </div>
+            <div class="nav-utils">
+                <button onclick="toggleTheme()" title="Cambia tema" aria-label="Cambia tema">
+                    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                </button>
+            </div>
+        </div>
+    </nav>
+
     <div id="app-container">
-        
+
         <section id="view-db-select" class="view">
-            <h1>Importa Dati</h1>
-            <p style="text-align: center; margin-bottom: 20px;">Seleziona il tuo file .json e tutte le immagini associate direttamente dal telefono.</p>
-            <div style="background: var(--bg-card); padding: 20px; border-radius: 8px; text-align: center;">
-                <input type="file" id="file-input" multiple style="display: block; width: 100%; margin-bottom: 20px; color: var(--text-main);">
-                <button class="mode-btn" onclick="processFiles()">Carica in Memoria</button>
+            <h1 class="page-title">Importa dati</h1>
+            <div class="card">
+                <h2>Carica un database</h2>
+                <p class="muted">Seleziona il file .json e tutte le immagini associate, oppure direttamente un PDF ExamTopics (es. CCNA, Fortinet).</p>
+                <div class="file-drop">
+                    <input type="file" id="file-input" multiple accept=".json,.pdf,image/*">
+                </div>
+                <button class="mode-btn" onclick="processFiles()">Carica in memoria</button>
+                <p id="import-status" class="hidden"></p>
             </div>
         </section>
 
         <section id="view-mode-select" class="view hidden">
-            <h1 id="mode-db-title"></h1>
-            <button class="mode-btn" onclick="selectCategory('all')">All</button>
-            <button class="mode-btn" onclick="selectCategory('crocette')">Multiple choice</button>
-            <button class="mode-btn" onclick="selectCategory('dariempire')">Fill in the blank</button>
-            <button class="mode-btn" onclick="selectCategory('tap_match')">Drag & Drop</button>
+            <h1 class="page-title" id="mode-db-title"></h1>
+            <div class="card">
+                <span class="label">Tipo di domande</span>
+                <div class="choice-list">
+                    <button class="choice-btn" onclick="selectCategory('all')"><span>All<small>Tutte le domande</small></span><span class="chev">›</span></button>
+                    <button class="choice-btn" onclick="selectCategory('crocette')"><span>Multiple choice<small>Crocette</small></span><span class="chev">›</span></button>
+                    <button class="choice-btn" onclick="selectCategory('dariempire')"><span>Fill in the blank<small>Risposta aperta</small></span><span class="chev">›</span></button>
+                    <button class="choice-btn" onclick="selectCategory('tap_match')"><span>Drag &amp; Drop<small>Associazioni</small></span><span class="chev">›</span></button>
+                </div>
+            </div>
             <button class="menu-btn" onclick="switchView('view-db-select')">Indietro</button>
         </section>
 
         <section id="view-order-select" class="view hidden">
-            <h1>Ordinamento</h1>
-            <button class="mode-btn" onclick="confirmMode(false)">Ordered mode</button>
-            <button class="mode-btn" onclick="confirmMode(true)">Shuffle mode</button>
+            <h1 class="page-title">Ordinamento</h1>
+            <div class="card">
+                <span class="label">Come vuoi le domande?</span>
+                <div class="choice-list">
+                    <button class="choice-btn" onclick="confirmMode(false)"><span>Ordered mode<small>Nell'ordine del database</small></span><span class="chev">›</span></button>
+                    <button class="choice-btn" onclick="confirmMode(true)"><span>Shuffle mode<small>Ordine casuale</small></span><span class="chev">›</span></button>
+                </div>
+            </div>
             <button class="menu-btn" onclick="switchView('view-mode-select')">Indietro</button>
         </section>
 
         <section id="view-quiz" class="view hidden">
-            <header>
+            <header class="quiz-header">
                 <div id="progress-bar"><div id="progress-fill"></div></div>
-                <p id="stats">Q: <span id="current-q">0</span>/<span id="total-q">0</span> | Punteggio: <span id="score">0</span> | <span id="timer">0m 0s</span></p>
+                <p id="stats">
+                    <span class="stat">Domanda<b><span id="current-q">0</span>/<span id="total-q">0</span></b></span>
+                    <span class="stat">Punteggio<b id="score">0</b></span>
+                    <span class="stat">Tempo<b id="timer">0m 0s</b></span>
+                </p>
             </header>
-            <main>
+            <main class="card">
                 <div id="image-container"></div>
                 <h2 id="question-text"></h2>
-                
+
                 <div id="options-container" class="hidden"></div>
                 <div id="input-container" class="hidden">
                     <input type="text" id="text-answer" placeholder="Scrivi la risposta...">
                 </div>
-                
+
                 <div id="feedback" class="hidden"></div>
-                
+
                 <div class="button-row">
                     <button id="submit-btn" class="action-btn">Submit</button>
                     <button id="next-btn" class="action-btn hidden">Next</button>
                 </div>
-                <button class="menu-btn" onclick="quitQuiz()">Back to menu</button>
+                <p class="kbd-hint">Tastiera: <kbd>A</kbd>–<kbd>Z</kbd> seleziona · <kbd>Invio</kbd> conferma / avanti · <kbd>Esc</kbd> menu</p>
             </main>
+            <button class="menu-btn" onclick="quitQuiz()">Back to menu</button>
         </section>
 
         <section id="view-results" class="view hidden">
-            <h1>Quiz Terminato</h1>
-            <div id="results-stats"></div>
-            <button id="retry-errors-btn" class="mode-btn hidden" onclick="retryErrors()">Riprova solo errori</button>
-            <button class="mode-btn" onclick="retryShuffle()">Riprova tutti (Shuffle)</button>
-            <button class="menu-btn" onclick="switchView('view-db-select')">Menu Principale</button>
+            <h1 class="page-title">Quiz terminato</h1>
+            <div class="card">
+                <div id="results-stats"></div>
+                <div style="margin-top: 1.25rem;">
+                    <button id="retry-errors-btn" class="mode-btn hidden" onclick="retryErrors()">Riprova solo errori</button>
+                    <button class="menu-btn" onclick="retryShuffle()">Riprova tutti (Shuffle)</button>
+                </div>
+            </div>
+            <button class="menu-btn" onclick="switchView('view-db-select')">Menu principale</button>
         </section>
 
     </div>
+
+    <div id="lightbox" class="lightbox" onclick="this.classList.remove('active')"><img alt=""></div>
+
+    <div id="modal-dialog" class="modal-overlay" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <h3 id="modal-title"></h3>
+            <p id="modal-message"></p>
+            <div id="modal-chips" class="modal-chips hidden"></div>
+            <input type="text" id="modal-input" class="hidden" autocomplete="off" inputmode="numeric">
+            <div class="modal-actions">
+                <button id="modal-cancel" class="menu-btn">Annulla</button>
+                <button id="modal-ok" class="mode-btn">OK</button>
+            </div>
+        </div>
+    </div>
+    <script src="lib/pdf.min.js"></script>
+    <script src="lib/tesseract/tesseract.min.js"></script>
+    <script src="pdf_parser.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

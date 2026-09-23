@@ -14,29 +14,130 @@ let imageMap = {};
 let currentSelectedMatchItem = null;
 
 window.onload = () => {
+    syncThemeColor();
     switchView('view-db-select');
 };
+
+// Tema chiaro/scuro in stile ThisPlay (chiave separata: non tocca le impostazioni di ThisPlay).
+function syncThemeColor() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const meta = document.getElementById('theme-color-meta');
+    if (meta) meta.setAttribute('content', isDark ? '#18181b' : '#ffffff');
+}
+
+function toggleTheme() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const newTheme = isDark ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    try { localStorage.setItem('quizTheme', newTheme); } catch (e) {}
+    syncThemeColor();
+}
+
+// ---- Popup in stile ThisPlay (sostituiscono alert/prompt nativi) ----
+// opts: { title, message, hint, input: bool, placeholder, chips: [{label, value}],
+//         okText, cancelText, showCancel, error }. Risolve con il testo (prompt),
+// true (alert) oppure null se annullato.
+function showDialog(opts) {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('modal-dialog');
+        const card = overlay.querySelector('.modal-card');
+        const titleEl = document.getElementById('modal-title');
+        const msgEl = document.getElementById('modal-message');
+        const chipsEl = document.getElementById('modal-chips');
+        const input = document.getElementById('modal-input');
+        const okBtn = document.getElementById('modal-ok');
+        const cancelBtn = document.getElementById('modal-cancel');
+
+        card.classList.toggle('is-error', !!opts.error);
+        titleEl.textContent = opts.title || 'Attenzione';
+        msgEl.textContent = opts.message || '';
+        if (opts.hint) {
+            const small = document.createElement('small');
+            small.textContent = opts.hint;
+            msgEl.appendChild(small);
+        }
+
+        input.classList.toggle('hidden', !opts.input);
+        input.value = '';
+        input.placeholder = opts.placeholder || '';
+
+        chipsEl.innerHTML = '';
+        chipsEl.classList.toggle('hidden', !(opts.chips && opts.chips.length));
+        (opts.chips || []).forEach(c => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = c.label;
+            b.onclick = () => {
+                input.value = c.value;
+                chipsEl.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+                input.focus();
+            };
+            chipsEl.appendChild(b);
+        });
+        input.oninput = () => chipsEl.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+
+        okBtn.textContent = opts.okText || 'OK';
+        cancelBtn.textContent = opts.cancelText || 'Annulla';
+        cancelBtn.classList.toggle('hidden', !opts.showCancel);
+
+        const close = (value) => {
+            overlay.classList.remove('active');
+            overlay.setAttribute('aria-hidden', 'true');
+            document.removeEventListener('keydown', onKey);
+            okBtn.onclick = cancelBtn.onclick = overlay.onclick = null;
+            resolve(value);
+        };
+        const ok = () => close(opts.input ? input.value.trim() : true);
+        const cancel = () => close(opts.showCancel ? null : true);
+        const onKey = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); ok(); }
+            else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+        };
+
+        okBtn.onclick = ok;
+        cancelBtn.onclick = cancel;
+        overlay.onclick = (e) => { if (e.target === overlay) cancel(); };
+        document.addEventListener('keydown', onKey);
+
+        overlay.classList.add('active');
+        overlay.setAttribute('aria-hidden', 'false');
+        setTimeout(() => (opts.input ? input : okBtn).focus(), 50);
+    });
+}
+
+function uiAlert(message, title = 'Attenzione', error = false) {
+    return showDialog({ title, message, error });
+}
 
 function switchView(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     document.getElementById(viewId).classList.remove('hidden');
+    window.scrollTo(0, 0);
 }
 
-function processFiles() {
+async function processFiles() {
     const files = document.getElementById('file-input').files;
     let jsonFile = null;
+    let pdfFile = null;
     imageMap = {};
 
     for (let file of files) {
-        if (file.name.endsWith('.json')) {
+        if (file.name.toLowerCase().endsWith('.pdf')) {
+            pdfFile = file;
+        } else if (file.name.endsWith('.json')) {
             jsonFile = file;
         } else if (file.type.startsWith('image/')) {
             imageMap[file.name] = URL.createObjectURL(file);
         }
     }
 
+    if (pdfFile) {
+        await processPdfFile(pdfFile);
+        return;
+    }
+
     if (!jsonFile) {
-        alert("Errore critico: Seleziona il file .json del database.");
+        await uiAlert("Seleziona il file .json del database, oppure un PDF ExamTopics.", "Nessun database", true);
         return;
     }
 
@@ -48,10 +149,51 @@ function processFiles() {
             document.getElementById('mode-db-title').innerText = state.currentDb.name;
             switchView('view-mode-select');
         } catch (err) {
-            alert("File JSON corrotto o malformato. Impossibile procedere.");
+            uiAlert("File JSON corrotto o malformato. Impossibile procedere.", "Errore", true);
         }
     };
     reader.readAsText(jsonFile);
+}
+
+async function processPdfFile(pdfFile) {
+    const statusEl = document.getElementById('import-status');
+    const btn = document.querySelector('#view-db-select .mode-btn');
+    statusEl.classList.remove('hidden');
+    btn.disabled = true;
+
+    const setStatus = (label, cur, tot) => {
+        statusEl.innerText = tot ? `${label} (${cur}/${tot})` : label;
+    };
+
+    try {
+        const result = await parsePdfDatabase(pdfFile, setStatus);
+
+        imageMap = {};
+        Object.entries(result.images).forEach(([fname, dataUrl]) => {
+            imageMap[fname] = dataUrl;
+        });
+
+        state.allQuestions = result.questions;
+        state.currentDb = { name: pdfFile.name.replace(/\.pdf$/i, '') };
+        document.getElementById('mode-db-title').innerText = state.currentDb.name;
+
+        if (result.questions.length === 0) {
+            await uiAlert("Nessuna domanda riconosciuta in questo PDF. Il formato potrebbe non essere supportato.", "PDF non riconosciuto", true);
+        } else {
+            let msg = `Importate ${result.questions.length} domande.`;
+            if (result.ocrUpgraded > 0) msg += ` ${result.ocrUpgraded} drag&drop rese interattive tramite OCR.`;
+            if (result.skipped > 0) msg += ` ${result.skipped} non riconosciute e saltate.`;
+            if (result.ocrUpgraded > 0 || result.skipped > 0) await uiAlert(msg, 'Import completato');
+        }
+
+        switchView('view-mode-select');
+    } catch (err) {
+        console.error(err);
+        await uiAlert("Errore durante la lettura del PDF: " + err.message, "Errore", true);
+    } finally {
+        statusEl.classList.add('hidden');
+        btn.disabled = false;
+    }
 }
 
 function selectCategory(cat) {
@@ -59,17 +201,21 @@ function selectCategory(cat) {
     switchView('view-order-select');
 }
 
-function confirmMode(isShuffle) {
+async function confirmMode(isShuffle) {
     let mode = state.selectedCategory;
     let qList = [...state.allQuestions];
 
     // Applica il filtro della categoria se non è "all"
-    if (mode !== 'all') {
+    if (mode === 'tap_match') {
+        // "Drag & Drop" copre sia le domande interattive (tap_match) sia quelle
+        // importate da PDF in modalità auto-verifica (drag_drop, solo immagini).
+        qList = qList.filter(q => q.type === 'tap_match' || q.type === 'drag_drop');
+    } else if (mode !== 'all') {
         qList = qList.filter(q => (q.type || 'crocette') === mode);
     }
 
     if (qList.length === 0) { 
-        alert("Nessuna domanda presente in questa categoria."); 
+        await uiAlert("Nessuna domanda presente in questa categoria.", "Categoria vuota"); 
         switchView('view-mode-select');
         return; 
     }
@@ -80,7 +226,19 @@ function confirmMode(isShuffle) {
     }
 
     // Selezione del range
-    let limit = prompt(`Trovate ${qList.length} domande. Quante ne vuoi fare? (Lascia vuoto per tutte, o usa formato '1-30')`);
+    const total = qList.length;
+    const chips = [10, 25, 50, 100].filter(n => n < total).map(n => ({ label: String(n), value: String(n) }));
+    chips.push({ label: 'Tutte', value: '' });
+    let limit = await showDialog({
+        title: `${total} domande`,
+        message: 'Quante ne vuoi fare?',
+        hint: "Lascia vuoto per tutte, oppure un intervallo es. 1-30",
+        input: true,
+        placeholder: `Tutte (${total})`,
+        chips,
+        okText: 'Inizia',
+        showCancel: true
+    });
     
     // Se l'utente preme "Annulla" sul prompt, interrompi
     if (limit === null) return; 
@@ -98,7 +256,7 @@ function confirmMode(isShuffle) {
     }
 
     if (qList.length === 0) { 
-        alert("Range non valido o nessuna domanda selezionata."); 
+        await uiAlert("Range non valido o nessuna domanda selezionata.", "Range non valido", true); 
         return; 
     }
     
@@ -165,6 +323,8 @@ function renderQuestion() {
         });
     }
 
+    document.getElementById('view-quiz').classList.toggle('has-image', ui.img.children.length > 0);
+
     let qType = q.type || 'crocette';
 
     if (qType === 'drag_drop') {
@@ -190,7 +350,13 @@ function renderQuestion() {
             cb.dataset.oldkey = oldKey;
 
             row.appendChild(cb);
-            row.appendChild(document.createTextNode(`${newLetter}: ${text}`));
+            const txt = document.createElement('span');
+            txt.textContent = `${newLetter}: ${text}`;
+            row.appendChild(txt);
+            const key = document.createElement('span');
+            key.className = 'key-hint';
+            key.textContent = newLetter;
+            row.appendChild(key);
             ui.opts.appendChild(row);
         });
     
@@ -243,7 +409,7 @@ function renderQuestion() {
             let catDiv = document.createElement('div');
             catDiv.className = 'match-category';
             // pointer-events: none sul titolo evita conflitti di click
-            catDiv.innerHTML = `<h3 style="pointer-events: none; margin: 0 0 10px 0; border-bottom: 1px solid rgba(0,0,0,0.2); padding-bottom: 5px;">${catName}</h3>`;
+            catDiv.innerHTML = `<h3>${catName}</h3>`;
             
             let bucket = document.createElement('div');
             bucket.className = 'match-bucket';
@@ -280,28 +446,67 @@ function checkAnswer() {
         
     } else if (qType === 'tap_match') {
         let allCorrect = true;
-        let buckets = document.querySelectorAll('.match-bucket');
-        
-        // Se ci sono ancora elementi non assegnati
-        if (document.getElementById('match-source').children.length > 0) {
-            allCorrect = false;
-        }
+        const answer = q.answer || {};
+        const source = document.getElementById('match-source');
+        const matchArea = document.getElementById('match-area');
+        const fixNote = (itemNode, text) => {
+            const n = document.createElement('small');
+            n.className = 'match-fix';
+            n.textContent = text;
+            itemNode.appendChild(n);
+        };
 
-        buckets.forEach(bucket => {
-            let catName = bucket.dataset.category;
+        // Elementi lasciati nella zona di partenza: errore solo se dovevano andare in una categoria
+        Array.from(source.children).forEach(itemNode => {
+            const itemText = itemNode.innerText;
+            if (answer[itemText]) {
+                allCorrect = false;
+                itemNode.classList.add('wrong');
+                fixNote(itemNode, `→ ${answer[itemText]}`);
+            }
+        });
+
+        document.querySelectorAll('.match-bucket').forEach(bucket => {
+            const catName = bucket.dataset.category;
             Array.from(bucket.children).forEach(itemNode => {
-                let itemText = itemNode.innerText;
-                if (q.answer[itemText] === catName) {
-                    itemNode.style.border = "2px solid var(--success)";
+                const itemText = itemNode.innerText;
+                if (answer[itemText] === catName) {
+                    itemNode.classList.add('correct');
                 } else {
-                    itemNode.style.border = "2px solid var(--error)";
+                    itemNode.classList.add('wrong');
+                    fixNote(itemNode, answer[itemText] ? `→ ${answer[itemText]}` : '→ da non associare');
                     allCorrect = false;
                 }
             });
         });
 
+        // Dopo il controllo le associazioni non si possono più spostare
+        matchArea.classList.add('locked');
+        if (source.children.length === 0) source.classList.add('hidden');
+
+        if (!allCorrect) {
+            const sol = document.createElement('div');
+            sol.className = 'match-solution';
+            let html = '<span class="label">Soluzione corretta</span><div class="match-solution-grid">';
+            q.categories.forEach(cat => {
+                const items = Object.keys(answer).filter(k => answer[k] === cat);
+                html += `<div class="match-solution-cat"><h4></h4><ul>${items.map(() => '<li></li>').join('')}</ul></div>`;
+            });
+            html += '</div>';
+            sol.innerHTML = html;
+            // Testi inseriti con textContent (niente HTML dai dati del quiz)
+            sol.querySelectorAll('.match-solution-cat').forEach((el, i) => {
+                const cat = q.categories[i];
+                el.querySelector('h4').textContent = cat;
+                const items = Object.keys(answer).filter(k => answer[k] === cat);
+                el.querySelectorAll('li').forEach((li, j) => { li.textContent = items[j]; });
+                if (items.length === 0) el.querySelector('ul').outerHTML = '<p class="match-solution-empty">Nessun elemento</p>';
+            });
+            matchArea.after(sol);
+        }
+
         isCorrect = allCorrect;
-        feedbackText = isCorrect ? "Associazioni perfette!" : "Ci sono errori nelle associazioni. Controlla gli elementi rossi.";
+        feedbackText = isCorrect ? "Associazioni perfette!" : "Associazioni sbagliate — vedi la soluzione qui sopra.";
 
     } else if (qType === 'crocette') {
         let selectedOldKeys = [];
@@ -374,9 +579,12 @@ function showEndScreen() {
     let tot = state.activeQuestions.length;
 
     let statsHtml = `
-        <h2 style="font-size: 2rem; color: var(--text-main)">Score: ${state.score} / ${tot}</h2>
-        <p>Tempo: ${timeStr}</p>
-        <p style="color: ${errors > 0 ? 'var(--error)' : 'var(--success)'}">Errori: ${errors}</p>
+        <span class="label">Punteggio</span>
+        <div class="results-score">${state.score}<span> / ${tot}</span></div>
+        <div class="results-grid">
+            <div><span class="label">Tempo</span><b>${timeStr}</b></div>
+            <div class="${errors > 0 ? 'bad' : 'good'}"><span class="label">Errori</span><b>${errors}</b></div>
+        </div>
     `;
     document.getElementById('results-stats').innerHTML = statsHtml;
 
@@ -402,3 +610,41 @@ function quitQuiz() {
     clearInterval(state.timerInterval);
     switchView('view-db-select');
 }
+
+// ---- Uso da desktop: immagini ingrandibili e scorciatoie da tastiera ----
+document.addEventListener('click', (e) => {
+    const img = e.target.closest('#image-container img');
+    if (!img) return;
+    const lb = document.getElementById('lightbox');
+    lb.querySelector('img').src = img.src;
+    lb.classList.add('active');
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const lb = document.getElementById('lightbox');
+    if (lb.classList.contains('active')) {
+        if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); lb.classList.remove('active'); }
+        return;
+    }
+    // I popup gestiscono da soli la tastiera
+    if (document.getElementById('modal-dialog').classList.contains('active')) return;
+    if (document.getElementById('view-quiz').classList.contains('hidden')) return;
+
+    const submitBtn = document.getElementById('submit-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const typing = document.activeElement && document.activeElement.id === 'text-answer';
+
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!submitBtn.classList.contains('hidden')) submitBtn.click();
+        else if (!nextBtn.classList.contains('hidden')) nextBtn.click();
+        return;
+    }
+    if (e.key === 'Escape' && !typing) { e.preventDefault(); quitQuiz(); return; }
+    if (typing || e.key.length !== 1) return;
+
+    const letter = e.key.toUpperCase();
+    const cb = document.querySelector(`.option-row input[type="checkbox"][value="${letter}"]`);
+    if (cb && !cb.disabled) { e.preventDefault(); cb.checked = !cb.checked; }
+});

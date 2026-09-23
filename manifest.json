@@ -3,8 +3,8 @@
   "short_name": "QuizPro",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#222831",
-  "theme_color": "#00ADB5",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": [
     {
       "src": "https://www.iconpacks.net/icons/2/free-settings-icon-3110-thumb.png",
